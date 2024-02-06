@@ -1,8 +1,17 @@
-> This repository is no longer actively maintained. Please checkout
-> [https://github.com/ava-labs/firewood](https://github.com/ava-labs/firewood)
-> if you would like to use Firewood in your project.
+**NOTE: this repo starts with the part of the code I wrote when I was at Ava
+Labs. It was written from scratch all by myself and enables an MVP key-value
+store that is based on a new design that I came up with. The Avalanche
+community licensed firewood's [code](https://github.com/ava-labs/firewood) is
+derived from this. I personally encourage the open-source contribution to this
+repo because of its MIT license. I may not have time dedicated to this repo
+nowadays, but please feel free to contact me if you're interested in
+research/contribution to this project.**
 
-# Firewood: non-archival blockchain key-value store with hyper-fast recent state retrieval.
+The MIT version of Firewood has been renamed to Cordwood in its package name.
+As we know cordwood is firewood. It's the wood that gets cut into pieces to
+burn, which is an even better name for the systems design. :)
+
+# Firewood: non-archival blockchain key-value store with fast recent state retrieval.
 
 Firewood is an embedded key-value store, optimized to store blockchain state.
 It prioritizes access to latest state, by providing extremely fast reads, but

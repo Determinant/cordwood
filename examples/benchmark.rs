@@ -1,6 +1,6 @@
 use clap::Parser;
 use criterion::Criterion;
-use firewood::db::{DBConfig, WALConfig, DB};
+use cordwood::db::{DBConfig, WALConfig, DB};
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

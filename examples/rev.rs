@@ -1,4 +1,4 @@
-use firewood::db::{DBConfig, WALConfig, DB};
+use cordwood::db::{DBConfig, WALConfig, DB};
 
 fn main() {
     let cfg = DBConfig::builder().wal(WALConfig::builder().max_revisions(10).build());

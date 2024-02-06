@@ -1,5 +1,5 @@
 use clap::{command, Arg, ArgMatches};
-use firewood::db::{DBConfig, DBError, WALConfig, DB};
+use cordwood::db::{DBConfig, DBError, WALConfig, DB};
 
 fn main() {
     let matches = command!()

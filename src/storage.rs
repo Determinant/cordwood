@@ -624,7 +624,7 @@ impl CachedSpaceInner {
 
     fn pin_page(&mut self, space_id: SpaceID, pid: u64) -> Result<&'static mut [u8], StoreError> {
         let base = match self.pinned_pages.get_mut(&pid) {
-            Some(mut e) => {
+            Some(e) => {
                 e.0 += 1;
                 e.1.as_mut_ptr()
             }

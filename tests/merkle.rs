@@ -1,4 +1,4 @@
-use firewood::merkle::*;
+use cordwood::merkle::*;
 use shale::{MemStore, MummyObj, ObjPtr};
 use std::rc::Rc;
 
@@ -16,11 +16,11 @@ impl MerkleSetup {
         self.merkle.remove(key, self.root).unwrap();
     }
 
-    fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<firewood::merkle::Ref> {
+    fn get<K: AsRef<[u8]>>(&self, key: K) -> Option<cordwood::merkle::Ref> {
         self.merkle.get(key, self.root).unwrap()
     }
 
-    fn get_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<firewood::merkle::RefMut> {
+    fn get_mut<K: AsRef<[u8]>>(&mut self, key: K) -> Option<cordwood::merkle::RefMut> {
         self.merkle.get_mut(key, self.root).unwrap()
     }
 

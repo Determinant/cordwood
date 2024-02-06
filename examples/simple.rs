@@ -1,4 +1,4 @@
-use firewood::db::{DBConfig, WALConfig, DB};
+use cordwood::db::{DBConfig, WALConfig, DB};
 
 fn print_states(db: &DB) {
     println!("======");

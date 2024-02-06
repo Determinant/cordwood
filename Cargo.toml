@@ -1,7 +1,9 @@
 [package]
-name = "firewood"
-version = "0.1.0"
+name = "cordwood"
+version = "0.0.1"
 edition = "2021"
+license = "MIT"
+description = "Cordwood: non-archival blockchain key-value store with fast recent state retrieval."
 
 [dependencies]
 enum-as-inner = "0.5.1"
@@ -18,7 +20,7 @@ tokio = { version = "1.21.1", features = ["rt", "sync", "macros"] }
 shale = "0.1.7"
 growth-ring = "0.3.0"
 futures = "0.3.24"
-primitive-types = { verison = "0.12.0", features = ["impl-rlp"] }
+primitive-types = { version = "0.12.0", features = ["impl-rlp"] }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

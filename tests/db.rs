@@ -1,4 +1,4 @@
-use firewood::db::{DBConfig, WALConfig, DB};
+use cordwood::db::{DBConfig, WALConfig, DB};
 use std::collections::VecDeque;
 
 macro_rules! kv_dump {
