@@ -695,7 +695,7 @@ impl Merkle {
         })
     }
 
-    fn set_parent<'b>(&self, new_chd: ObjPtr<Node>, parents: &mut [(ObjRef<'b, Node>, u8)]) {
+    fn set_parent<'b>(&self, new_chd: ObjPtr<Node>, parents: &mut [(ObjRef<Node>, u8)]) {
         let (p_ref, idx) = parents.last_mut().unwrap();
         p_ref
             .write(|p| {
@@ -709,8 +709,8 @@ impl Merkle {
             .unwrap();
     }
 
-    fn split<'b>(
-        &self, mut u_ref: ObjRef<'b, Node>, parents: &mut [(ObjRef<'b, Node>, u8)], rem_path: &[u8], n_path: Vec<u8>,
+    fn split(
+        &self, mut u_ref: ObjRef<Node>, parents: &mut [(ObjRef<Node>, u8)], rem_path: &[u8], n_path: Vec<u8>,
         n_value: Option<Data>, val: Vec<u8>, deleted: &mut Vec<ObjPtr<Node>>,
     ) -> Result<Option<Vec<u8>>, MerkleError> {
         let u_ptr = u_ref.as_ptr();
@@ -1010,8 +1010,8 @@ impl Merkle {
         Ok(())
     }
 
-    fn after_remove_leaf<'b>(
-        &self, parents: &mut Vec<(ObjRef<'b, Node>, u8)>, deleted: &mut Vec<ObjPtr<Node>>,
+    fn after_remove_leaf(
+        &self, parents: &mut Vec<(ObjRef<Node>, u8)>, deleted: &mut Vec<ObjPtr<Node>>,
     ) -> Result<(), MerkleError> {
         let (b_chd, val) = {
             let (mut b_ref, b_idx) = parents.pop().unwrap();
@@ -1170,7 +1170,7 @@ impl Merkle {
     }
 
     fn after_remove_branch<'b>(
-        &self, (c_ptr, idx): (ObjPtr<Node>, u8), parents: &mut Vec<(ObjRef<'b, Node>, u8)>,
+        &self, (c_ptr, idx): (ObjPtr<Node>, u8), parents: &mut Vec<(ObjRef<Node>, u8)>,
         deleted: &mut Vec<ObjPtr<Node>>,
     ) -> Result<(), MerkleError> {
         // [b] -> [u] -> [c]
@@ -1519,7 +1519,7 @@ impl Merkle {
     }
 }
 
-pub struct Ref<'a>(ObjRef<'a, Node>);
+pub struct Ref(ObjRef<Node>);
 
 pub struct RefMut<'a> {
     ptr: ObjPtr<Node>,
@@ -1527,7 +1527,7 @@ pub struct RefMut<'a> {
     merkle: &'a mut Merkle,
 }
 
-impl<'a> std::ops::Deref for Ref<'a> {
+impl<'a> std::ops::Deref for Ref {
     type Target = [u8];
     fn deref(&self) -> &[u8] {
         match &self.0.inner {
@@ -1543,7 +1543,7 @@ impl<'a> RefMut<'a> {
         Self { ptr, parents, merkle }
     }
 
-    pub fn get<'b>(&'b self) -> Ref<'b> {
+    pub fn get(&self) -> Ref {
         Ref(self.merkle.get_node(self.ptr).unwrap())
     }
 

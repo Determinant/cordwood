@@ -1,24 +1,24 @@
 [package]
 name = "cordwood"
-version = "0.0.2"
+version = "0.0.3"
 edition = "2021"
 license = "MIT"
 description = "Cordwood: non-archival blockchain key-value store with fast recent state retrieval."
 
 [dependencies]
-enum-as-inner = "0.5.1"
+enum-as-inner = "0.6.0"
 parking_lot = "0.12.1"
 rlp = "0.5.2"
 sha3 = "0.10.8"
 once_cell = "1.19.0"
 hex = "0.4.3"
-lru = "0.8.1"
+lru = "0.12.2"
 libaio-futures = "0.2.3"
-nix = "0.25.1"
-typed-builder = "0.10.0"
+nix = { version = "0.27.1", features = ["fs", "uio"] }
+typed-builder = "0.18.1"
 tokio = { version = "1.36.0", features = ["rt", "sync", "macros"] }
-shale = "0.1.7"
-growth-ring = "0.3.0"
+shale = "0.1.9"
+growth-ring = "0.3.1"
 futures = "0.3.30"
 primitive-types = { version = "0.12.2", features = ["impl-rlp"] }
 
@@ -27,7 +27,7 @@ primitive-types = { version = "0.12.2", features = ["impl-rlp"] }
 
 [dev-dependencies]
 clap = { version = "4.4.18", features = ["cargo", "derive"] }
-criterion = "0.4.0"
+criterion = "0.5.1"
 keccak-hasher = "0.15.3"
 rand = "0.8.5"
 triehash = "0.8.4"

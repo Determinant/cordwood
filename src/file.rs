@@ -2,50 +2,52 @@
 
 #![allow(dead_code)]
 
-pub(crate) use std::os::unix::io::RawFd as Fd;
+pub(crate) use std::os::fd::{AsFd, AsRawFd, BorrowedFd, FromRawFd, OwnedFd};
 
 use nix::errno::Errno;
 use nix::fcntl::{open, openat, OFlag};
 use nix::sys::stat::Mode;
-use nix::unistd::{close, fsync, mkdir};
+use nix::unistd::{fsync, mkdir};
 
 pub struct File {
-    fd: Fd,
+    fd: OwnedFd,
     fid: u64,
 }
 
 impl File {
-    pub fn open_file(rootfd: Fd, fname: &str, truncate: bool) -> nix::Result<Fd> {
-        openat(
-            rootfd,
+    fn open_file(rootfd: BorrowedFd, fname: &str, truncate: bool) -> nix::Result<OwnedFd> {
+        let raw_fd = openat(
+            rootfd.as_raw_fd(),
             fname,
             (if truncate { OFlag::O_TRUNC } else { OFlag::empty() }) | OFlag::O_RDWR,
             Mode::S_IRUSR | Mode::S_IWUSR,
-        )
+        )?;
+        Ok(unsafe { OwnedFd::from_raw_fd(raw_fd) })
     }
 
-    pub fn create_file(rootfd: Fd, fname: &str) -> Fd {
-        openat(
-            rootfd,
+    fn create_file(rootfd: BorrowedFd, fname: &str) -> OwnedFd {
+        let raw_fd = openat(
+            rootfd.as_raw_fd(),
             fname,
             OFlag::O_CREAT | OFlag::O_RDWR,
             Mode::S_IRUSR | Mode::S_IWUSR,
         )
-        .unwrap()
+        .unwrap();
+        unsafe { OwnedFd::from_raw_fd(raw_fd) }
     }
 
     fn _get_fname(fid: u64) -> String {
         format!("{:08x}.fw", fid)
     }
 
-    pub fn new(fid: u64, flen: u64, rootfd: Fd) -> nix::Result<Self> {
+    pub fn new(fid: u64, flen: u64, rootfd: BorrowedFd) -> nix::Result<Self> {
         let fname = Self::_get_fname(fid);
         let fd = match Self::open_file(rootfd, &fname, false) {
             Ok(fd) => fd,
             Err(e) => match e {
                 Errno::ENOENT => {
                     let fd = Self::create_file(rootfd, &fname);
-                    nix::unistd::ftruncate(fd, flen as nix::libc::off_t)?;
+                    nix::unistd::ftruncate(fd.as_fd(), flen as nix::libc::off_t)?;
                     fd
                 }
                 e => return Err(e),
@@ -54,8 +56,8 @@ impl File {
         Ok(File { fd, fid })
     }
 
-    pub fn get_fd(&self) -> Fd {
-        self.fd
+    pub fn get_fd(&self) -> BorrowedFd {
+        self.fd.as_fd()
     }
     pub fn get_fid(&self) -> u64 {
         self.fid
@@ -65,28 +67,35 @@ impl File {
     }
 
     pub fn sync(&self) {
-        fsync(self.fd).unwrap();
+        fsync(self.fd.as_raw_fd()).unwrap();
     }
 }
 
-impl Drop for File {
-    fn drop(&mut self) {
-        close(self.fd).unwrap();
-    }
-}
-
-pub fn touch_dir(dirname: &str, rootfd: Fd) -> Result<Fd, Errno> {
+pub fn touch_dir(dirname: &str, rootfd: BorrowedFd) -> Result<OwnedFd, Errno> {
     use nix::sys::stat::mkdirat;
-    if mkdirat(rootfd, dirname, Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IXUSR).is_err() {
+    if mkdirat(
+        rootfd.as_raw_fd(),
+        dirname,
+        Mode::S_IRUSR | Mode::S_IWUSR | Mode::S_IXUSR,
+    )
+    .is_err()
+    {
         let errno = nix::errno::from_i32(nix::errno::errno());
         if errno != nix::errno::Errno::EEXIST {
             return Err(errno)
         }
     }
-    openat(rootfd, dirname, OFlag::O_DIRECTORY | OFlag::O_PATH, Mode::empty())
+    Ok(unsafe {
+        OwnedFd::from_raw_fd(openat(
+            rootfd.as_raw_fd(),
+            dirname,
+            OFlag::O_DIRECTORY | OFlag::O_PATH,
+            Mode::empty(),
+        )?)
+    })
 }
 
-pub fn open_dir(path: &str, truncate: bool) -> Result<(Fd, bool), nix::Error> {
+pub fn open_dir(path: &str, truncate: bool) -> Result<(OwnedFd, bool), nix::Error> {
     let mut reset_header = truncate;
     if truncate {
         let _ = std::fs::remove_dir_all(path);
@@ -104,7 +113,7 @@ pub fn open_dir(path: &str, truncate: bool) -> Result<(Fd, bool), nix::Error> {
     }
     Ok((
         match open(path, OFlag::O_DIRECTORY | OFlag::O_PATH, Mode::empty()) {
-            Ok(fd) => fd,
+            Ok(fd) => unsafe { OwnedFd::from_raw_fd(fd) },
             Err(e) => return Err(e),
         },
         reset_header,

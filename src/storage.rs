@@ -18,7 +18,7 @@ use shale::{MemStore, MemView, SpaceID};
 use tokio::sync::{mpsc, oneshot, Mutex, Semaphore};
 use typed_builder::TypedBuilder;
 
-use crate::file::{Fd, File};
+use crate::file::{OwnedFd, AsFd, AsRawFd, File};
 
 pub(crate) const PAGE_SIZE_NBIT: u64 = 12;
 pub(crate) const PAGE_SIZE: u64 = 1 << PAGE_SIZE_NBIT;
@@ -499,14 +499,7 @@ impl MemStore for StoreRevMut {
 
 #[cfg(test)]
 #[derive(Clone)]
-pub struct ZeroStore(Rc<()>);
-
-#[cfg(test)]
-impl ZeroStore {
-    pub fn new() -> Self {
-        Self(Rc::new(()))
-    }
-}
+pub struct ZeroStore;
 
 #[cfg(test)]
 impl MemStoreR for ZeroStore {
@@ -540,7 +533,7 @@ fn test_from_ash() {
             println!("[0x{:x}, 0x{:x})", l, r);
             writes.push(SpaceWrite { offset: l, data });
         }
-        let z = Rc::new(ZeroStore::new());
+        let z = Rc::new(ZeroStore);
         let rev = StoreRevShared::from_ash(z, &writes);
         println!("{:?}", rev);
         assert_eq!(&**rev.get_view(min, max - min).unwrap(), &canvas);
@@ -562,7 +555,7 @@ pub struct StoreConfig {
     #[builder(default = 22)] // 4MB file by default
     file_nbit: u64,
     space_id: SpaceID,
-    rootfd: Fd,
+    rootfd: OwnedFd,
 }
 
 struct CachedSpaceInner {
@@ -579,14 +572,13 @@ pub struct CachedSpace {
 }
 
 impl CachedSpace {
-    pub fn new(cfg: &StoreConfig) -> Result<Self, StoreError> {
+    pub fn new(cfg: StoreConfig) -> Result<Self, StoreError> {
         let space_id = cfg.space_id;
-        let files = Arc::new(FilePool::new(cfg)?);
         Ok(Self {
             inner: Rc::new(RefCell::new(CachedSpaceInner {
                 cached_pages: lru::LruCache::new(NonZeroUsize::new(cfg.ncached_pages).expect("non-zero cache size")),
                 pinned_pages: HashMap::new(),
-                files,
+                files: Arc::new(FilePool::new(cfg)?),
                 disk_buffer: DiskBufferRequester::default(),
             })),
             space_id,
@@ -727,11 +719,11 @@ impl MemStoreR for CachedSpace {
 pub struct FilePool {
     files: parking_lot::Mutex<lru::LruCache<u64, Arc<File>>>,
     file_nbit: u64,
-    rootfd: Fd,
+    rootfd: OwnedFd,
 }
 
 impl FilePool {
-    fn new(cfg: &StoreConfig) -> Result<Self, StoreError> {
+    fn new(cfg: StoreConfig) -> Result<Self, StoreError> {
         let rootfd = cfg.rootfd;
         let file_nbit = cfg.file_nbit;
         let s = Self {
@@ -742,7 +734,7 @@ impl FilePool {
             rootfd,
         };
         let f0 = s.get_file(0)?;
-        if let Err(_) = flock(f0.get_fd(), FlockArg::LockExclusiveNonblock) {
+        if let Err(_) = flock(f0.get_fd().as_raw_fd(), FlockArg::LockExclusiveNonblock) {
             return Err(StoreError::InitError("the store is busy".into()))
         }
         Ok(s)
@@ -756,7 +748,7 @@ impl FilePool {
             None => {
                 files.put(
                     fid,
-                    Arc::new(File::new(fid, file_size, self.rootfd).map_err(StoreError::System)?),
+                    Arc::new(File::new(fid, file_size, self.rootfd.as_fd()).map_err(StoreError::System)?),
                 );
                 files.peek(&fid).unwrap().clone()
             }
@@ -771,8 +763,7 @@ impl FilePool {
 impl Drop for FilePool {
     fn drop(&mut self) {
         let f0 = self.get_file(0).unwrap();
-        flock(f0.get_fd(), FlockArg::UnlockNonblock).ok();
-        nix::unistd::close(self.rootfd).ok();
+        flock(f0.get_fd().as_raw_fd(), FlockArg::UnlockNonblock).ok();
     }
 }
 
@@ -783,7 +774,7 @@ pub struct BufferWrite {
 }
 
 pub enum BufferCmd {
-    InitWAL(Fd, String),
+    InitWAL(OwnedFd, String),
     WriteBatch(Vec<BufferWrite>, AshRecord),
     GetPage((SpaceID, u64), oneshot::Sender<Option<Arc<Page>>>),
     CollectAsh(usize, oneshot::Sender<Vec<AshRecord>>),
@@ -894,7 +885,7 @@ impl DiskBuffer {
             .unwrap();
         let fut = self
             .aiomgr
-            .write(file.get_fd(), offset & fmask, Box::new(*p.staging_data), None);
+            .write(file.get_fd().as_raw_fd(), offset & fmask, Box::new(*p.staging_data), None);
         let s = unsafe { self.get_longlive_self() };
         self.start_task(async move {
             let (res, _) = fut.await;
@@ -929,11 +920,11 @@ impl DiskBuffer {
         }
     }
 
-    async fn init_wal(&mut self, rootfd: Fd, waldir: String) -> Result<(), ()> {
+    async fn init_wal(&mut self, rootfd: OwnedFd, waldir: String) -> Result<(), ()> {
         let mut aiobuilder = AIOBuilder::default();
         aiobuilder.max_events(self.cfg.wal_max_aio_requests as u32);
         let aiomgr = aiobuilder.build().map_err(|_| ())?;
-        let store = WALStoreAIO::new(&waldir, false, Some(rootfd), Some(aiomgr)).map_err(|_| ())?;
+        let store = WALStoreAIO::new(&waldir, false, Some(rootfd.as_fd()), Some(aiomgr)).map_err(|_| ())?;
         let mut loader = WALLoader::new();
         loader
             .file_nbit(self.wal_cfg.file_nbit)
@@ -1165,7 +1156,7 @@ impl DiskBufferRequester {
         self.sender.blocking_send(BufferCmd::Shutdown).ok().unwrap()
     }
 
-    pub fn init_wal(&self, waldir: &str, rootfd: Fd) {
+    pub fn init_wal(&self, waldir: &str, rootfd: OwnedFd) {
         self.sender
             .blocking_send(BufferCmd::InitWAL(rootfd, waldir.to_string()))
             .ok()
