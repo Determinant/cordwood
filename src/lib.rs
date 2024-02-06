@@ -1,35 +1,35 @@
-//! # Firewood: non-archival blockchain key-value store with hyper-fast recent state retrieval.
+//! # Cordwood: non-archival blockchain key-value store with hyper-fast recent state retrieval.
 //!
-//! Firewood is an embedded key-value store, optimized to store blockchain state. It prioritizes
+//! Cordwood is an embedded key-value store, optimized to store blockchain state. It prioritizes
 //! access to latest state, by providing extremely fast reads, but also provides a limited view
 //! into past state. It does not copy-on-write the Merkle Patricia Trie (MPT) to generate an ever
 //! growing forest of tries like EVM, but instead keeps one latest version of the MPT index on disk
 //! and apply in-place updates to it. This ensures that the database size is small and stable
-//! during the course of running firewood. Firewood was first conceived to provide a very fast
+//! during the course of running cordwood. Cordwood was first conceived to provide a very fast
 //! storage layer for the EVM to enable a fast, complete EVM system with right design choices made
 //! totally from scratch, but it also serves as a drop-in replacement for any EVM-compatible
 //! blockchain storage system, and fits for the general use of a certified key-value store of
 //! arbitrary data.
 //!
-//! Firewood is a robust database implemented from the ground up to directly store MPT nodes and
+//! Cordwood is a robust database implemented from the ground up to directly store MPT nodes and
 //! user data. Unlike most (if not all) of the solutions in the field, it is not built on top of a
-//! generic KV store such as LevelDB/RocksDB. Like a B+-tree based store, firewood directly uses
+//! generic KV store such as LevelDB/RocksDB. Like a B+-tree based store, cordwood directly uses
 //! the tree structure as the index on disk. Thus, there is no additional "emulation" of the
 //! logical MPT to flatten out the data structure to feed into the underlying DB that is unaware
 //! of the data being stored.
 //!
-//! Firewood provides OS-level crash recovery via a write-ahead log (WAL). The WAL guarantees
+//! Cordwood provides OS-level crash recovery via a write-ahead log (WAL). The WAL guarantees
 //! atomicity and durability in the database, but also offers "reversibility": some portion
 //! of the old WAL can be optionally kept around to allow a fast in-memory rollback to recover
 //! some past versions of the entire store back in memory. While running the store, new changes
 //! will also contribute to the configured window of changes (at batch granularity) to access any past
 //! versions with no additional cost at all.
 //!
-//! The on-disk footprint of Firewood is more compact than geth. It provides two isolated storage
+//! The on-disk footprint of Cordwood is more compact than geth. It provides two isolated storage
 //! space which can be both or selectively used the user. The account model portion of the storage
 //! offers something very similar to `StateDB` in geth, which captures the address-"state key"
 //! style of two-level access for an account's (smart contract's) state. Therefore, it takes
-//! minimal effort to delegate all state storage from an EVM implementation to firewood. The other
+//! minimal effort to delegate all state storage from an EVM implementation to cordwood. The other
 //! portion of the storage supports generic MPT storage for arbitrary keys and values. When unused,
 //! there is no additional cost.
 //!
@@ -56,7 +56,7 @@
 //!   persisted and available to the blockchain system as that's what matters for most of the time.
 //!   While one can still keep some volatile state versions in memory for mutation and VM
 //!   execution, the final commit to some state works on a singleton so the indexed merkle tries
-//!   may be typically updated in place. It is also possible (e.g., firewood) to allow some
+//!   may be typically updated in place. It is also possible (e.g., cordwood) to allow some
 //!   infrequent access to historical versions with higher cost, and/or allow fast access to
 //!   versions of the store within certain limited recency. This style of storage is useful for
 //!   the blockchain systems where only (or mostly) the latest state is required and data footprint
@@ -64,12 +64,12 @@
 //!   directly participate in the consensus and vote for the blocks, for example, can largely
 //!   benefit from such a design.
 //!
-//! In firewood, we take a closer look at the second regime and have come up with a simple but
+//! In cordwood, we take a closer look at the second regime and have come up with a simple but
 //! robust architecture that fulfills the need for such blockchain storage.
 //!
 //! ## Storage Model
 //!
-//! Firewood is built by three layers of abstractions that totally decouple the
+//! Cordwood is built by three layers of abstractions that totally decouple the
 //! layout/representation of the data on disk from the actual logical data structure it retains:
 //!
 //! - Linear, memory-like space: the [shale](https://crates.io/crates/shale) crate from an academic
@@ -87,7 +87,7 @@
 //!   and recycled throughout their life cycles (there is a disk-friendly, malloc-style kind of
 //!   basic implementation in `shale` crate, but one can always define his/her own `ShaleStore`).
 //!
-//! - Data structure: in Firewood, one or more Ethereum-style MPTs are maintained by invoking
+//! - Data structure: in Cordwood, one or more Ethereum-style MPTs are maintained by invoking
 //!   `ShaleStore` (see `src/merkle.rs`; another stash for code objects is in `src/account.rs`).
 //!   The data structure code is totally unaware of how its objects (i.e., nodes) are organized or
 //!   persisted on disk. It is as if they're just in memory, which makes it much easier to write
@@ -96,7 +96,7 @@
 //! The three layers are depicted as follows:
 //!
 //! <p align="center">
-//!     <img src="https://drive.google.com/uc?export=view&id=1KnlpqnxkmFd_aKZHwcferIdX137GVZJr" width="80%">
+//!     <img src="https://raw.githubusercontent.com/Determinant/cordwood/main/figures/three-layers.svg" width="80%">
 //! </p>
 //!
 //! Given the abstraction, one can easily realize the fact that the actual data that affect the
@@ -114,7 +114,7 @@
 //! ## Page-based Shadowing and Revisions
 //!
 //! Following the idea that the MPTs are just a view of a linear byte space, all writes made to the
-//! MPTs inside Firewood will eventually be consolidated into some interval writes to the linear
+//! MPTs inside Cordwood will eventually be consolidated into some interval writes to the linear
 //! space. The writes may overlap and some frequent writes are even done to the same spot in the
 //! space. To reduce the overhead and be friendly to the disk, we partition the entire 64-bit
 //! virtual space into pages (yeah it appears to be more and more like an OS) and keep track of the
@@ -128,7 +128,7 @@
 //! on-disk linear space to mirror the change by some asynchronous, out-of-order file writes. See
 //! the `BufferCmd::WriteBatch` part of `DiskBuffer::process` for the detailed logic.
 //!
-//! In short, a Read-Modify-Write (RMW) style normal operation flow is as follows in Firewood:
+//! In short, a Read-Modify-Write (RMW) style normal operation flow is as follows in Cordwood:
 //!
 //! - Traverse the MPT, and that induces the access to some nodes. Suppose the nodes are not already in
 //!   memory, then:
@@ -167,7 +167,7 @@
 //! we "push down" these changes to the base and clear up the staging space.
 //!
 //! <p align="center">
-//!     <img src="https://drive.google.com/uc?export=view&id=1l2CUbq85nX_g0GfQj44ClrKXd253sBFv" width="100%">
+//!     <img src="https://raw.githubusercontent.com/Determinant/cordwood/main/figures/architecture.svg" width="100%">
 //! </p>
 //!
 //! Thanks to the shadow pages, we can both revive some historical versions of the store and

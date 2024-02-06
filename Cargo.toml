@@ -1,6 +1,6 @@
 [package]
 name = "cordwood"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2021"
 license = "MIT"
 description = "Cordwood: non-archival blockchain key-value store with fast recent state retrieval."

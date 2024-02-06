@@ -20,7 +20,7 @@ const BLOB_META_SPACE: SpaceID = 0x2;
 const BLOB_PAYLOAD_SPACE: SpaceID = 0x3;
 const SPACE_RESERVED: u64 = 0x1000;
 
-const MAGIC_STR: &[u8; 13] = b"firewood v0.1";
+const MAGIC_STR: &[u8; 13] = b"cordwood v0.1";
 
 #[derive(Debug)]
 pub enum DBError {
@@ -346,7 +346,7 @@ impl Drop for DBInner {
     }
 }
 
-/// Firewood database handle.
+/// Cordwood database handle.
 pub struct DB {
     inner: Mutex<DBInner>,
     payload_regn_nbit: u64,
