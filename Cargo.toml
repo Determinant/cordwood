@@ -4,6 +4,7 @@ version = "0.0.4"
 edition = "2021"
 license = "MIT"
 description = "Cordwood: non-archival blockchain key-value store with fast recent state retrieval."
+repository = "https://github.com/Determinant/cordwood"
 
 [dependencies]
 enum-as-inner = "0.6.0"
