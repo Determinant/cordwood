@@ -9,7 +9,7 @@ fn main() {
     let db = DB::new(path.unwrap().as_str(), &DBConfig::builder().truncate(false).build()).unwrap();
     let mut stdout = std::io::stdout();
     println!("== Account Model ==");
-    db.dump(&mut stdout).unwrap();
+    //db.dump(&mut stdout).unwrap();
     println!("== Generic KV ==");
     db.kv_dump(&mut stdout).unwrap();
 }
@@ -24,6 +24,7 @@ fn get_db_path(matches: ArgMatches) -> Result<String, DBError> {
     // Build and provide a new db path
     let cfg = DBConfig::builder().wal(WALConfig::builder().max_revisions(10).build());
     let db = DB::new("simple_db", &cfg.truncate(true).build()).unwrap();
+    /*
     db.new_writebatch()
         .set_balance(b"ted", 10.into())
         .unwrap()
@@ -36,5 +37,6 @@ fn get_db_path(matches: ArgMatches) -> Result<String, DBError> {
         .set_state(b"ted", b"y", b"2".to_vec())
         .unwrap()
         .commit();
+    */
     Ok("simple_db".to_string())
 }

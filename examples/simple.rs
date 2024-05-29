@@ -1,29 +1,8 @@
 use cordwood::db::{DBConfig, WALConfig, DB};
 
-fn print_states(db: &DB) {
-    println!("======");
-    for account in ["ted", "alice"] {
-        let addr = account.as_bytes();
-        println!("{account}.balance = {}", db.get_balance(addr).unwrap());
-        println!("{account}.nonce = {}", db.get_nonce(addr).unwrap());
-        println!(
-            "{}.code = {}",
-            account,
-            std::str::from_utf8(&db.get_code(addr).unwrap()).unwrap()
-        );
-        for state_key in ["x", "y", "z"] {
-            println!(
-                "{}.state.{} = {}",
-                account,
-                state_key,
-                std::str::from_utf8(&db.get_state(addr, state_key.as_bytes()).unwrap()).unwrap()
-            );
-        }
-    }
-}
-
 fn main() {
     let cfg = DBConfig::builder().wal(WALConfig::builder().max_revisions(10).build());
+    /*
     {
         let db = DB::new("simple_db", &cfg.clone().truncate(true).build()).unwrap();
         db.new_writebatch()
@@ -62,4 +41,5 @@ fn main() {
         db.new_writebatch().delete_account(b"nobody", &mut acc).unwrap();
         assert!(acc.is_none());
     }
+    */
 }
