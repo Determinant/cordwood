@@ -16,8 +16,8 @@ pub use crate::storage::{DiskBufferConfig, WALConfig};
 
 const MERKLE_META_SPACE: SpaceID = 0x0;
 const MERKLE_PAYLOAD_SPACE: SpaceID = 0x1;
-const BLOB_META_SPACE: SpaceID = 0x2;
-const BLOB_PAYLOAD_SPACE: SpaceID = 0x3;
+//const BLOB_META_SPACE: SpaceID = 0x2;
+//const BLOB_PAYLOAD_SPACE: SpaceID = 0x3;
 const SPACE_RESERVED: u64 = 0x1000;
 
 const MAGIC_STR: &[u8; 13] = b"cordwood v0.1";
@@ -153,7 +153,7 @@ struct DBHeader {
 }
 
 impl DBHeader {
-    pub const MSIZE: u64 = 16;
+    pub const MSIZE: u64 = 8; //16;
 
     pub fn new_empty() -> Self {
         Self {
@@ -169,7 +169,7 @@ impl MummyItem for DBHeader {
             .get_view(addr, Self::MSIZE)
             .ok_or(shale::ShaleError::LinearMemStoreError)?;
         //let acc_root = u64::from_le_bytes(raw[..8].try_into().unwrap());
-        let kv_root = u64::from_le_bytes(raw[8..].try_into().unwrap());
+        let kv_root = u64::from_le_bytes(raw[..].try_into().unwrap());
         unsafe {
             Ok(Self {
                 //acc_root: ObjPtr::new_from_addr(acc_root),
