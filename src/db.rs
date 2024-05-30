@@ -10,7 +10,7 @@ use typed_builder::TypedBuilder;
 
 //use crate::account::{Account, AccountRLP, Blob, BlobStash};
 use crate::file::{self, AsFd};
-use crate::merkle::{Hash, IdTrans, Merkle, MerkleError, Node};
+use crate::merkle::{Array, ArrayError, Node};
 use crate::storage::{CachedSpace, DiskBuffer, MemStoreR, SpaceWrite, StoreConfig, StoreRevMut, StoreRevShared};
 pub use crate::storage::{DiskBufferConfig, WALConfig};
 
@@ -25,8 +25,8 @@ const MAGIC_STR: &[u8; 13] = b"cordwood v0.1";
 #[derive(Debug)]
 pub enum DBError {
     InvalidParams,
-    Merkle(MerkleError),
-    Blob(crate::account::BlobError),
+    Array(ArrayError),
+    //Blob(crate::account::BlobError),
     System(nix::Error),
 }
 
@@ -228,7 +228,7 @@ impl Universe<Rc<dyn MemStoreR>> {
 /// Some readable version of the DB.
 pub struct DBRev {
     header: shale::Obj<DBHeader>,
-    merkle: Merkle,
+    merkle: Array,
 //    blob: BlobStash,
 }
 
@@ -239,20 +239,22 @@ impl DBRev {
         self.merkle.flush_dirty()
     }
 
-    fn borrow_split(&mut self) -> (&mut shale::Obj<DBHeader>, &mut Merkle/*, &mut BlobStash*/) {
+    fn borrow_split(&mut self) -> (&mut shale::Obj<DBHeader>, &mut Array/*, &mut BlobStash*/) {
         (&mut self.header, &mut self.merkle)/*, &mut self.blob)*/
     }
 
+    /*
     /// Get root hash of the generic key-value storage.
     pub fn kv_root_hash(&self) -> Result<Hash, DBError> {
         self.merkle
-            .root_hash::<IdTrans>(self.header.kv_root)
-            .map_err(DBError::Merkle)
+            .root_hash(self.header.kv_root)
+            .map_err(DBError::Array)
     }
+    */
 
     /// Dump the MPT of the generic key-value storage.
-    pub fn kv_dump(&self, w: &mut dyn Write) -> Result<(), DBError> {
-        self.merkle.dump(self.header.kv_root, w).map_err(DBError::Merkle)
+    pub fn array_dump(&self, w: &mut dyn Write) -> Result<(), DBError> {
+        self.merkle.dump(self.header.kv_root, w).map_err(DBError::Array)
     }
 
     /*
@@ -260,19 +262,19 @@ impl DBRev {
     pub fn root_hash(&self) -> Result<Hash, DBError> {
         self.merkle
             .root_hash::<AccountRLP>(self.header.acc_root)
-            .map_err(DBError::Merkle)
+            .map_err(DBError::Array)
     }
 
     /// Dump the MPT of the entire account model storage.
     pub fn dump(&self, w: &mut dyn Write) -> Result<(), DBError> {
-        self.merkle.dump(self.header.acc_root, w).map_err(DBError::Merkle)
+        self.merkle.dump(self.header.acc_root, w).map_err(DBError::Array)
     }
 
     fn get_account(&self, key: &[u8]) -> Result<Account, DBError> {
         Ok(match self.merkle.get(key, self.header.acc_root) {
             Ok(Some(bytes)) => Account::deserialize(&bytes),
             Ok(None) => Account::default(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         })
     }
 
@@ -281,11 +283,11 @@ impl DBRev {
         let acc = match self.merkle.get(key, self.header.acc_root) {
             Ok(Some(bytes)) => Account::deserialize(&bytes),
             Ok(None) => Account::default(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         };
         writeln!(w, "{:?}", acc).unwrap();
         if !acc.root.is_null() {
-            self.merkle.dump(acc.root, w).map_err(DBError::Merkle)?;
+            self.merkle.dump(acc.root, w).map_err(DBError::Array)?;
         }
         Ok(())
     }
@@ -321,7 +323,7 @@ impl DBRev {
         Ok(match self.merkle.get(sub_key, root) {
             Ok(Some(v)) => v.to_vec(),
             Ok(None) => Vec::new(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         })
     }
 
@@ -329,10 +331,14 @@ impl DBRev {
     pub fn exist(&self, key: &[u8]) -> Result<bool, DBError> {
         Ok(match self.merkle.get(key, self.header.acc_root) {
             Ok(r) => r.is_some(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         })
     }
     */
+
+    pub fn array_get(&self, idx: u64) -> Result<u64, DBError> {
+        self.merkle.get(idx, self.header.kv_root).map_err(DBError::Array)
+    }
 }
 
 struct DBInner {
@@ -573,17 +579,17 @@ impl DB {
             db_header_ref
                 .write(|r| {
                     err = (|| {
-                        //Merkle::init_root(&mut r.acc_root, &merkle_space)?;
-                        Merkle::init_root(&mut r.kv_root, &merkle_space)
+                        //Array::init_root(&mut r.acc_root, &merkle_space)?;
+                        Array::init(&mut r.kv_root, &merkle_space)
                     })();
                 })
                 .unwrap();
-            err.map_err(DBError::Merkle)?
+            err.map_err(DBError::Array)?
         }
 
         let mut latest = DBRev {
             header: db_header_ref,
-            merkle: Merkle::new(Box::new(merkle_space)),
+            merkle: Array::new(Box::new(merkle_space)),
             //blob: BlobStash::new(Box::new(blob_space)),
         };
         latest.flush_dirty().unwrap();
@@ -613,8 +619,8 @@ impl DB {
     }
 
     /// Dump the MPT of the latest generic key-value storage.
-    pub fn kv_dump(&self, w: &mut dyn Write) -> Result<(), DBError> {
-        self.inner.lock().latest.kv_dump(w)
+    pub fn array_dump(&self, w: &mut dyn Write) -> Result<(), DBError> {
+        self.inner.lock().latest.array_dump(w)
     }
 
     /*
@@ -664,6 +670,10 @@ impl DB {
     }
     */
 
+    pub fn array_get(&self, idx: u64) -> Result<u64, DBError> {
+        self.inner.lock().latest.array_get(idx)
+    }
+
     /// Get a handle that grants the access to some historical state of the entire DB.
     pub fn get_revision(&self, nback: usize, cfg: Option<DBRevConfig>) -> Option<Revision> {
         let mut inner = self.inner.lock();
@@ -703,7 +713,7 @@ impl DB {
             // DBHeader starts after DBParams in merkle meta space
             db_header = ObjPtr::new_from_addr(offset);
             offset += DBHeader::MSIZE;
-            // Merkle CompactHeader starts after DBHeader in merkle meta space
+            // Array CompactHeader starts after DBHeader in merkle meta space
             merkle_payload_header = ObjPtr::new_from_addr(offset);
             offset += CompactSpaceHeader::MSIZE;
             assert!(offset <= SPACE_RESERVED);
@@ -755,7 +765,7 @@ impl DB {
             _m: inner,
             rev: DBRev {
                 header: db_header_ref,
-                merkle: Merkle::new(Box::new(merkle_space)),
+                merkle: Array::new(Box::new(merkle_space)),
                 //blob: BlobStash::new(Box::new(blob_space)),
             },
         })
@@ -785,18 +795,9 @@ pub struct WriteBatch<'a> {
 }
 
 impl<'a> WriteBatch<'a> {
-    /// Insert an item to the generic key-value storage.
-    pub fn kv_insert<K: AsRef<[u8]>>(mut self, key: K, val: Vec<u8>) -> Result<Self, DBError> {
+    pub fn array_set(mut self, idx: u64, val: u64) -> Result<Self, DBError> {
         let (header, merkle/*, _*/) = self.m.latest.borrow_split();
-        merkle.insert(key, val, header.kv_root).map_err(DBError::Merkle)?;
-        Ok(self)
-    }
-
-    /// Remove an item from the generic key-value storage. `val` will be set to the value that is
-    /// removed from the storage if it exists.
-    pub fn kv_remove<K: AsRef<[u8]>>(mut self, key: K, val: &mut Option<Vec<u8>>) -> Result<Self, DBError> {
-        let (header, merkle/*, _*/) = self.m.latest.borrow_split();
-        *val = merkle.remove(key, header.kv_root).map_err(DBError::Merkle)?;
+        merkle.set(idx, val, header.kv_root).map_err(DBError::Array)?;
         Ok(self)
     }
 
@@ -817,7 +818,7 @@ impl<'a> WriteBatch<'a> {
                         }
                         *b = acc.serialize();
                     })
-                    .map_err(DBError::Merkle)?;
+                    .map_err(DBError::Array)?;
                 ret?;
             }
             Ok(None) => {
@@ -825,9 +826,9 @@ impl<'a> WriteBatch<'a> {
                 modify(&mut acc, blob)?;
                 merkle
                     .insert(key, acc.serialize(), header.acc_root)
-                    .map_err(DBError::Merkle)?;
+                    .map_err(DBError::Array)?;
             }
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         }
         Ok(())
     }
@@ -871,16 +872,16 @@ impl<'a> WriteBatch<'a> {
         let mut acc = match merkle.get(key, header.acc_root) {
             Ok(Some(r)) => Account::deserialize(&*r),
             Ok(None) => Account::default(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         };
         if acc.root.is_null() {
-            Merkle::init_root(&mut acc.root, merkle.get_store()).map_err(DBError::Merkle)?;
+            Array::init_root(&mut acc.root, merkle.get_store()).map_err(DBError::Array)?;
         }
-        merkle.insert(sub_key, val, acc.root).map_err(DBError::Merkle)?;
-        acc.root_hash = merkle.root_hash::<IdTrans>(acc.root).map_err(DBError::Merkle)?;
+        merkle.insert(sub_key, val, acc.root).map_err(DBError::Array)?;
+        acc.root_hash = merkle.root_hash::<IdTrans>(acc.root).map_err(DBError::Array)?;
         merkle
             .insert(key, acc.serialize(), header.acc_root)
-            .map_err(DBError::Merkle)?;
+            .map_err(DBError::Array)?;
         Ok(self)
     }
 
@@ -890,7 +891,7 @@ impl<'a> WriteBatch<'a> {
         let old_balance = match merkle.get_mut(key, header.acc_root) {
             Ok(Some(bytes)) => Account::deserialize(&bytes.get()).balance,
             Ok(None) => U256::zero(),
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         };
         let acc = Account {
             balance: old_balance,
@@ -898,7 +899,7 @@ impl<'a> WriteBatch<'a> {
         };
         merkle
             .insert(key, acc.serialize(), header.acc_root)
-            .map_err(DBError::Merkle)?;
+            .map_err(DBError::Array)?;
         Ok(self)
     }
 
@@ -911,10 +912,10 @@ impl<'a> WriteBatch<'a> {
                 *acc = None;
                 return Ok(self)
             }
-            Err(e) => return Err(DBError::Merkle(e)),
+            Err(e) => return Err(DBError::Array(e)),
         };
         if !a.root.is_null() {
-            merkle.remove_tree(a.root).map_err(DBError::Merkle)?;
+            merkle.remove_tree(a.root).map_err(DBError::Array)?;
             a.root = ObjPtr::null();
         }
         if !a.code.is_null() {
@@ -940,7 +941,7 @@ impl<'a> WriteBatch<'a> {
         let inner = &mut *self.m;
         if self.root_hash_recalc {
             //inner.latest.root_hash().ok();
-            inner.latest.kv_root_hash().ok();
+            //inner.latest.kv_root_hash().ok();
         }
         // clear the staging layer and apply changes to the CachedSpace
         inner.latest.flush_dirty().unwrap();

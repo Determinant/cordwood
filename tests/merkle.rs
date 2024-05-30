@@ -1,3 +1,4 @@
+/*
 use cordwood::merkle::*;
 use shale::{MemStore, MummyObj, ObjPtr};
 use std::rc::Rc;
@@ -237,3 +238,4 @@ fn test_root_hash_random_deletions() {
         println!("i = {i}");
     }
 }
+*/
