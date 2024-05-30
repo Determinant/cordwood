@@ -84,7 +84,6 @@ impl MummyItem for Node {
             }
             Self::Array(a) => {
                 cur.write_all(&[Self::ARRAY]).unwrap();
-                println!("a.len() = {}", a.len());
                 cur.write_all(&(a.len() as u64).to_le_bytes()).unwrap();
                 for v in a.iter() {
                     cur.write_all(&v.to_le_bytes()).unwrap();
@@ -166,13 +165,9 @@ impl Array {
     }
 
     pub fn get(&self, idx: u64, root: ObjPtr<Node>) -> Result<u64, ArrayError> {
-        match &**self.get_node(match **self.get_node(root)? {
-            Node::Root(p) => p,
-            _ => unreachable!(),
-        })? {
-            Node::Array(a) => Ok(a[idx as usize]),
-            _ => unreachable!(),
-        }
+        let array_ref = self.get_node(self.get_node(root)?.as_root().unwrap())?;
+        let array = array_ref.as_array().unwrap();
+        Ok(array[idx as usize])
     }
 
     pub fn flush_dirty(&self) -> Option<()> {
